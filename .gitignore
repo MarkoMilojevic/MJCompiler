@@ -22,6 +22,11 @@ local.properties
 .loadpath
 *.launch
 
+# CUP generated files #
+/src/rs/ac/bg/etf/pp1/MJParser.java
+/src/rs/ac/bg/etf/pp1/sym.java
+/src/rs/ac/bg/etf/pp1/Yylex.java
+
 # Log files #
 /logs/
 
