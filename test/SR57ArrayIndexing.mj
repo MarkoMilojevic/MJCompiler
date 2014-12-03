@@ -1,0 +1,14 @@
+// [R57] – izraza za indeksiranje niza – ignorisati karaktere do prvog znaka "]"
+program Program
+{
+	void main() {
+		a = b[i++];
+		a = new int[i++];
+		a = b[i j];
+		a = new int[i j];
+		a = b[i & j];
+		a = new int[i & j];
+		a = b[i && j];
+		a = new int[i && j];
+	}
+}

@@ -1,0 +1,21 @@
+// [R58] – deklaracija formalnog parametra funkcije – ignorisati znakove do znaka "," ili ")"
+program Program
+{
+	int f(a) {}
+	
+	int g(a b) {} // ne detektuje gresku
+	
+	int h(int a b) {}
+	
+	int l(int a b, c) {} // treba da se oporavi do zareza
+	
+	int m(int a, b c) {} // ne detektuje gresku
+	
+	int n(int) {}
+	
+	int k(,) {}
+	
+	void main() {
+		return;
+	}
+}

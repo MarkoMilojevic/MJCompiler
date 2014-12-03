@@ -1,0 +1,13 @@
+// [R60] – deklaracija prosirenja natklase – ignorisati znakove do prvog znaka "{"
+program Program 
+	class A {}
+	
+	class B extends {}
+	
+	class C extends A B {}
+	
+{
+	void main() A a; C c; int i; int x[]; {
+		return;
+	}
+}

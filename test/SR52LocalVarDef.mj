@@ -1,0 +1,19 @@
+// Oporavak od greske - [R52] - definicija lokalne promenljive - ignorisati karaktere do prvog znaka ";" ili "{"
+program Program
+{
+	int f() int a b, c; {}
+	
+	int g() int a, b, ; {}
+	
+	int h() int a b; {}
+	
+	int l() a {}
+	
+	// int m() int a = 0 {} - treba da se oporavi do '{'
+	
+	// int n() int a {} - da li treba da '{' oporavi?
+	
+	void main() int a b, c; {
+		return;
+	}
+}

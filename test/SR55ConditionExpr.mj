@@ -1,0 +1,15 @@
+// [R55] – logicke izraze unutar if ili while konstrukcije - ignorisati karaktere do prvog znaka ")"
+program Program
+{
+	void main() {
+		if () {}
+		if (a | b) {}
+		if (a < b < c) {}
+		if (a a) {}
+		if (a & b b) {}
+		while () {}
+		while (a | b) {}
+		while (a a) {}
+		while (a & b b) {}
+	}
+}

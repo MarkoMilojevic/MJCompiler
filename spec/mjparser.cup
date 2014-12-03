@@ -1,0 +1,632 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import java.io.*;
+import org.apache.log4j.*;
+import rs.etf.pp1.symboltable.Tab;
+import rs.etf.pp1.symboltable.concepts.*;
+
+parser code {:
+    Logger log = Logger.getLogger(getClass());
+    
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+        done_parsing();
+        report_error(message, info);
+    }
+    
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSyntax error", cur_token);
+    }
+    
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatal error, parsing cannot be continued", cur_token);
+    }
+    
+    public void report_error(String message, Object info) {
+        StringBuilder msg = new StringBuilder(message);
+        if (info instanceof Symbol) {
+            msg.append(" in line ").append(((Symbol)info).left);
+        }
+        
+        log.error(msg.toString());
+    }
+    
+    public void report_info(String message, Object info) {
+        StringBuilder msg = new StringBuilder(message);
+        if (info instanceof Symbol) {
+            msg.append(" in line ").append(((Symbol)info).left);
+        }
+        
+        log.info(msg.toString());
+    }
+:}
+
+scan with {:
+    Symbol s = this.getScanner().next_token();
+    if (s != null && s.value != null) {
+        log.info(s.toString() + " " + s.value.toString());
+    }
+        
+    return s;
+:}
+
+init with {:
+	Tab.init();
+:}
+
+action code {:
+	Obj currentMethod = null;
+	Struct currentType;
+	boolean returnFound = false;
+:}
+
+terminal PROGRAM, BREAK, CLASS, CONST, ELSE, EXTENDS, IF, NEW, PRINT, READ, RETURN, VOID, WHILE ;
+
+terminal String     IDENT ;
+terminal Integer    NUMBER ;
+terminal Character  CHAR ;
+terminal Boolean    BOOL ;
+terminal String     STRING ;
+
+terminal PLUS, MINUS, MULT, DIV, MOD, EQEQ, NOTEQ, GT, GTEQ, LT, LTEQ, ANDAND, OROR, EQ, PLUSPLUS, MINUSMINUS;
+terminal SEMICOLON, COMMA, DOT, LPAREN, RPAREN, LBRACK, RBRACK, LBRACE, RBRACE ;
+
+non terminal Addop, Mulop, Relop, ActPars ;
+non terminal CondFact, CondTerm, Condition ;
+non terminal Matched, Unmatched, Statement, StatementList ;
+non terminal FormPar, FormPars ;
+non terminal Var, VarDecl, VarDeclListTemp, VarDeclList ;
+non terminal MethodSignature, MethodCall, MethodName, MethodPars, MethodVarDeclList,  MethodDeclTemp, MethodDecl, MethodDeclList ;
+non terminal ClassName, ClassVarMethodDeclList, ClassDecl ;
+non terminal ConstType, ConstTemp, ConstList, ConstDecl ;
+non terminal Decl, DeclList ;
+non terminal Program ;
+
+non terminal Obj Designator ;
+non terminal Obj ProgramName ;
+non terminal Struct Factor, Term, ExprTemp, Expr ;
+non terminal Struct Type ;
+
+/* ================ Program ==================== */
+/* Program = "program" ident {ConstDecl | VarDecl | ClassDecl} "{" {MethodDecl} "}". */
+
+Program     ::= PROGRAM ProgramName:p DeclList LBRACE MethodDeclList RBRACE
+				{:
+					Tab.chainLocalSymbols(p);
+					Tab.closeScope();
+				:}
+				;
+
+ProgramName ::= IDENT:progName
+				{:
+					RESULT = Tab.insert(Obj.Prog, progName, Tab.noType);
+					Tab.openScope();
+				:}
+				;
+
+DeclList    ::= DeclList Decl
+                |
+                /* epsilon */
+                ;
+                            
+Decl        ::= ConstDecl
+                |
+                VarDecl
+                |
+                ClassDecl
+                ;                    
+/* ================ Program ==================== */
+
+
+/* ================ ConstDecl ================== */
+/* ConstDecl = "const" Type ident"="(num | charVal | boolVal | strVal) {, ident "=" ( num | charVal | boolVal | strVal)} ";" */
+
+ConstDecl   ::= CONST Type ConstList SEMICOLON ;
+
+ConstDecl   ::= CONST error:e SEMICOLON 
+                {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from constants definition."); :}
+                ;  
+
+ConstList   ::= ConstList COMMA ConstTemp
+                |
+                ConstTemp
+                ;
+
+ConstTemp   ::= IDENT EQ ConstType ;             
+
+ConstType   ::= NUMBER
+                |
+                CHAR
+                |
+                BOOL
+                |
+                STRING
+                ;
+/* ================ ConstDecl ================== */
+
+
+/* ================ VarDecl ==================== */
+/* VarDecl = Type ident ["[" "]"] {"," ident ["[" "]"]} ";" */
+
+VarDeclList 		::= VarDeclList VarDecl
+						|
+						VarDecl
+						;
+
+VarDecl				::= Type VarDeclListTemp ;
+				
+VarDeclListTemp 	::= Var COMMA VarDeclListTemp
+						|
+		                Var SEMICOLON
+		                ;
+		                
+VarDeclListTemp 	::= error:e COMMA VarDeclListTemp
+						{: parser.log.debug("Successful syntax error recovery in line " + eleft + " from variable definition until \',\'"); :}
+		                |
+		                error:e SEMICOLON
+		                {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from variable definition until \';\'"); :}
+		                ;
+
+Var					::= IDENT:varName LBRACK RBRACK
+						{:
+							parser.report_info("Variable declared \'" + varName + "\'[] in line " + varNameleft, null);
+							Tab.insert(Obj.Var, varName, currentType);
+						:}
+						|
+						IDENT:varName
+						{:
+							parser.report_info("Variable declared \'" + varName + "\' in line " + varNameleft, null);
+							Tab.insert(Obj.Var, varName, currentType);
+						:}
+						;
+/* ================ VarDecl ==================== */
+
+
+/* ================ ClassDecl ================== */
+/* ClassDecl = "class" ident ["extends" Type] "{" {VarDecl} ["{" {MethodDecl} "}"] "}" */
+
+ClassDecl               ::= CLASS ClassName LBRACE ClassVarMethodDeclList RBRACE
+                            |
+                            CLASS ClassName EXTENDS ClassName LBRACE ClassVarMethodDeclList RBRACE
+                            ;
+                            
+ClassDecl               ::= CLASS ClassName LBRACE error:e RBRACE
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'}\'"); :}
+                            |
+                            CLASS ClassName EXTENDS ClassName LBRACE error:e RBRACE
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'}\'"); :}
+                            |
+                            CLASS ClassName EXTENDS error:e LBRACE ClassVarMethodDeclList RBRACE
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'{\'"); :}
+                            ;
+                            
+ClassName               ::= IDENT ;
+
+ClassVarMethodDeclList  ::= VarDeclList LBRACE MethodDeclList RBRACE
+							|
+							VarDeclList
+                            |
+                            /* epsilon */
+                            ;
+/* ================ ClassDecl ================== */
+
+
+/* ================ MethodDecl ================= */
+/* MethodDecl = (Type | "void") ident "(" [FormPars] ")" {VarDecl} "{" {Statement} "}" */
+
+MethodDeclList      ::= MethodDeclList MethodDecl
+                        |
+                        /* epsilon */
+                        ;
+                        
+MethodDecl          ::= Type MethodDeclTemp
+                        |
+                        VOID
+                        {:
+                        	currentType = Tab.noType;
+                        :}
+                        MethodDeclTemp
+                        ;
+                            
+MethodDeclTemp      ::= MethodName:methodName LPAREN MethodPars RPAREN MethodVarDeclList LBRACE StatementList RBRACE
+						{:
+							if (!returnFound) {
+								parser.report_error("Semantical error: Function \'" + methodName + "\' does not have return statement", null);
+							}
+							
+							Tab.chainLocalSymbols(currentMethod);
+							Tab.closeScope();
+							returnFound = false;
+							currentMethod = null;
+						:}
+						;
+						
+MethodDeclTemp      ::=	MethodName LPAREN error:e RPAREN MethodVarDeclList LBRACE StatementList RBRACE
+						{: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \')\'"); :}
+						|
+						MethodName LPAREN MethodPars RPAREN error:e LBRACE StatementList RBRACE
+						{: parser.log.debug("Successful syntax error recovery in line " + eleft + " from local variables declarations until \'{\'"); :}
+						;
+						
+MethodName          ::= IDENT:methodName
+						{:
+							currentMethod = Tab.insert(Obj.Meth, methodName, currentType);
+							Tab.openScope();
+							parser.report_info("Processing method \'" + methodName + "\' in line " + methodNameleft, null);
+						:}
+						;
+
+MethodPars          ::= FormPars
+                        |
+                        /* epsilon */
+                        ;
+
+MethodVarDeclList   ::= VarDeclList
+                        |
+                        /* epsilon */
+                        ;
+                        
+MethodCall          ::= Designator:func MethodSignature
+						{:
+							if (Obj.Meth == func.getKind()) {
+								parser.report_info("Method call found \'" + func.getName() + "\' in line " + funcleft, null);
+								RESULT = func.getType();
+							}
+							else {
+								parser.report_error("Semantical error in line " + funcleft + " : Identifier \'" + func.getName() + "\' is not a function", null);
+								RESULT = Tab.noType;
+							}
+						:}
+						;
+
+MethodSignature     ::= LPAREN RPAREN
+                        |
+                        LPAREN ActPars RPAREN
+                        ;
+                        
+MethodSignature		::=	LPAREN error:e RPAREN
+                        {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \')\'."); :}
+                        ;
+/* ================ MethodDecl ================= */
+
+
+/* ================ FormPars =================== */
+/* FormPars = Type ident ["[" "]"] {"," Type ident ["[" "]"]} */
+
+FormPars    ::= FormPar COMMA FormPars
+                |
+                FormPar
+				;
+				
+FormPars	::= error:e COMMA FormPars
+				{: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \',\'"); :}
+                ;
+
+FormPar     ::= Type IDENT LBRACK RBRACK
+                |
+                Type IDENT
+                ;
+/* ================ FormPars =================== */
+
+
+/* ================ Type ======================= */
+/* Type = ident */
+
+Type    ::= IDENT:typeName
+			{:
+			 	Obj typeNode = Tab.find(typeName);
+				if (typeNode == Tab.noObj) {
+					parser.report_error("Type \'" + typeName + "\' not found in the symbols table", null);
+					currentType = Tab.noType;
+					RESULT = Tab.noType;
+				}
+				else {
+					if (Obj.Type == typeNode.getKind()) {
+						currentType = typeNode.getType();
+						RESULT = typeNode.getType();
+					}
+					else {
+						parser.report_error("Semantical error in line" + typeNameleft + " : Identifier \'" + typeName + "\' does not represent a type", null);
+						currentType = Tab.noType;
+						RESULT = Tab.noType;
+					}
+				}
+		 	:}
+		 	;
+/* ================ Type ======================= */
+
+
+/* ================ Statement ================== */
+/* 
+	Statement = Designator ("=" Expr | "(" [ActPars] ")" | "++" | "--") ";"
+				| "if" "(" Condition ")" Statement ["else" Statement]
+				| "while" "(" Condition ")" Statement
+				| "break" ";"
+				| "return" [Expr] ";"
+				| "read" "(" Designator ")" ";"
+				| "print" "(" Expr ["," number] ")" ";"
+				| "{" {Statement} "}".
+*/
+
+StatementList   ::= StatementList Statement
+                    |
+                    /* epsilon */
+                    ;
+
+Statement       ::= Matched
+                    |
+                    Unmatched
+                    ;
+                        
+Matched         ::= Designator:dest EQ Expr:e SEMICOLON
+					{:
+						if (!e.assignableTo(dest.getType())) {
+							parser.report_error("Semantical error in line " + destleft + " : Incompatible types", null);
+						}
+					:}
+                    |
+                    MethodCall SEMICOLON
+                    |
+                    Designator PLUSPLUS SEMICOLON
+                    |
+                    Designator MINUSMINUS SEMICOLON
+                    |
+                    IF LPAREN Condition RPAREN Matched ELSE Matched
+                    |
+                    WHILE LPAREN Condition RPAREN Matched
+                    |
+                    BREAK SEMICOLON
+                    |
+                    RETURN Expr:t SEMICOLON
+                    {:
+                    	returnFound = true;
+                    	Struct currentMethodType = currentMethod.getType();
+                    	if (!currentMethodType.compatibleWith(t)) {
+                    		parser.report_error("Semantical error in line " + tleft + " : Incompatible types", null);
+                    	}
+                    :}
+                    |
+                    RETURN:r SEMICOLON
+                    {:
+                    	returnFound = true;
+                    	Struct currentMethodType = currentMethod.getType();
+                    	if (!currentMethodType.compatibleWith(Tab.noType)) {
+                    		parser.report_error("Semantical error in line " + rleft + " : Incompatible types", null);
+                    	}
+                    :}
+                    |
+                    READ LPAREN Designator RPAREN SEMICOLON
+                    |
+                    PRINT LPAREN Expr COMMA NUMBER RPAREN SEMICOLON
+                    |
+                    PRINT LPAREN Expr RPAREN SEMICOLON
+                    |
+                    LBRACE StatementList RBRACE
+                    ;
+                    
+Matched			::= Designator EQ error:e SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement."); :}
+                    |
+                    error:e EQ Expr SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement."); :}
+                    |
+                    error:e SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \';\'."); :}
+                    |
+                    IF LPAREN error:e RPAREN Matched ELSE Matched
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
+                    |
+                    WHILE LPAREN error:e RPAREN Matched
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
+                    ;
+                    
+Unmatched       ::= IF LPAREN Condition RPAREN Statement
+					|
+                    IF LPAREN Condition RPAREN Matched ELSE Unmatched
+                    |
+                    WHILE LPAREN Condition RPAREN Unmatched
+                    ;
+                    
+Unmatched		::= IF LPAREN error:e RPAREN Statement
+					{: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
+                    |
+                    IF LPAREN error:e RPAREN Matched ELSE Unmatched
+					{: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
+                    |
+                    WHILE LPAREN error:e RPAREN Unmatched
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
+                    ;
+/* ================ Statement ================== */
+
+
+/* ================ ActPars ==================== */
+/* ActPars = Expr {"," Expr} */
+
+ActPars ::= ActPars COMMA Expr
+            |
+            Expr
+            ;
+/* ================ ActPars ==================== */
+
+
+/* ================ Condition ================== */
+/* Condition = CondTerm {"||" CondTerm} */
+
+Condition   ::= Condition OROR CondTerm
+                |
+                CondTerm                
+                ;
+/* ================ Condition ================== */
+
+
+/* ================ CondTerm =================== */
+/* CondTerm = CondFact {"&&" CondFact} */
+
+CondTerm    ::= CondTerm ANDAND CondFact
+                |
+                CondFact
+                ;
+/* ================ CondTerm =================== */
+
+
+/* ================ CondFact =================== */
+/* CondFact = Expr [Relop Expr] */
+
+CondFact    ::= Expr Relop Expr
+                |
+                Expr
+                ;
+/* ================ CondFact =================== */
+
+
+/* ================ Expr ======================= */
+/* Expr = ["-"] Term {Addop Term} */
+
+Expr        ::= MINUS ExprTemp:t
+				{:
+					RESULT = t;
+				:}
+                |
+                ExprTemp:t
+                {:
+					RESULT = t;
+				:}
+                ;
+
+ExprTemp    ::= ExprTemp:te Addop Term:t
+				{:
+					if (te.equals(t) && te == Tab.intType) {
+						RESULT = te;
+					}
+					else {
+						parser.report_error("Semantical error in line " + teleft + " : Incompatible types", null);
+						RESULT = Tab.noType;
+					}
+				:}
+                |
+                Term:t
+                {:
+                	RESULT = t;
+                :}
+                ;
+/* ================ Expr ======================= */
+
+
+/* ================ Term ======================= */
+/* Term = Factor {Mulop Factor} */
+
+Term    ::= Term Mulop Factor
+            |
+            Factor:t
+            {:
+            	RESULT = t;
+            :}
+            ;
+/* ================ Term ======================= */
+
+
+/* ================ Factor ===================== */
+/* Factor = Designator ["(" [ActPars] ")"] | number | charConst | strConst | "new" Type ["[" Expr "]"] | "(" Expr ")" */
+
+Factor  ::= Designator:d
+			{:
+            	RESULT = d.getType();
+            :}
+            |
+            MethodCall
+            |
+            NUMBER
+            {:
+            	RESULT = Tab.intType;
+            :}
+            |
+            CHAR
+            |
+            STRING
+            |
+            NEW Type
+            |
+            NEW Type LBRACK Expr RBRACK
+            |
+            LPAREN Expr RPAREN
+            ;
+            
+Factor  ::=	NEW Type LBRACK error:e RBRACK
+            {: parser.log.debug("Successful syntax error recovery in line" + eleft + " from array indexing expression until \']\'"); :}
+            ;
+/* ================ Factor ===================== */
+
+
+/* ================ Designator ================= */
+/* Designator = ident {"." ident | "[" Expr "]"} */
+
+Designator  ::= Designator DOT IDENT:name
+				{:
+					Obj obj = Tab.find(name);
+                	if (obj == Tab.noObj) {
+                		parser.report_error("Semantical error in line " + nameleft + " : Identifier \'" + name + "\' not declared", null);
+                	}
+                	
+                	RESULT = obj;
+				:}
+                |
+                Designator:d LBRACK Expr RBRACK
+                {:
+					RESULT = d;
+				:}
+                |
+                IDENT:name
+                {:
+                	Obj obj = Tab.find(name);
+                	if (obj == Tab.noObj) {
+                		parser.report_error("Semantical error in line " + nameleft + " : Identifier \'" + name + "\' not declared", null);
+                	}
+                	
+                	RESULT = obj;
+                :}
+                ;
+                
+Designator  ::=	Designator LBRACK error:e RBRACK
+                {: parser.log.debug("Successful syntax error recovery in line" + eleft + " from array indexing expression until \']\'"); :}
+                ;
+/* ================ Designator ================= */
+
+
+/* ================ Relop ====================== */
+/* Relop = "==" | "!=" | ">" | ">=" | "<" | "<=" */
+
+Relop   ::= EQEQ
+            |
+            NOTEQ
+            |
+            GT
+            |
+            GTEQ
+            |
+            LT
+            |
+            LTEQ
+            ;
+/* ================ Relop ====================== */
+
+
+/* ================ Addop ====================== */
+/* Addop = "+" | "-" */
+
+Addop   ::= PLUS
+            |
+            MINUS
+            ;
+/* ================ Addop ====================== */
+
+
+/* ================ Mulop ====================== */
+/* Mulop = "*" | "/" | "%" */
+
+Mulop   ::= MULT
+            |
+            DIV
+            |
+            MOD
+            ;
+/* ================ Mulop ====================== */

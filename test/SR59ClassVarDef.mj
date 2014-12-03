@@ -1,0 +1,15 @@
+// [R59] – deklaracija polja unutrasnje klase – ignorisati karaktere do prvog ";" ili "}"
+program Program 
+	class A {
+		int a b, c;
+		int a, b c;
+		int a b, ;
+		int a b;
+		char e = '2' // ne oporavlja se do '}'
+	}
+	
+{
+	void main() {
+		return;
+	}
+}

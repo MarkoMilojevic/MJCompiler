@@ -1,0 +1,13 @@
+// [R54] – poziv funkcije - ignorisati karaktere do prvog ";"
+// [R56] – liste parametara u pozivu funkcije – ignorisati karaktere do prvog znaka ")"
+program Program
+{
+	void main() {
+		print(a b); // oporavak treba do zagrade?
+		print(a b, c); // oporavak treba do zagrade?
+		print(a;
+		print(...); // oporavak treba do zagrade?
+		print(...;
+		print(;
+	}
+}

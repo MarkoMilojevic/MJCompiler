@@ -1,0 +1,8 @@
+// Oporavak od greske - [R53] - konstrukcija iskaza dodele - ignorisati karaktere do ";"
+program Program
+{
+	void main() {
+		c[2] = j++;
+		c = bulova++;
+	}
+}
