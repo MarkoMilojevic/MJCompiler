@@ -8,6 +8,20 @@
 *.war
 *.ear
 
+# Eclipse #
+.project
+.metadata
+/bin/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.classpath
+.settings/
+.loadpath
+*.launch
+
 # Log files #
 /logs/
 
