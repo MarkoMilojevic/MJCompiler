@@ -9,9 +9,9 @@ program Program
 	
 	int l() a {}
 	
-	// int m() int a = 0 {} - treba da se oporavi do '{'
+	int m() int a = 0 {}
 	
-	// int n() int a {} - da li treba da '{' oporavi?
+	int n() int a {}
 	
 	void main() int a b, c; {
 		return;

@@ -3,11 +3,14 @@
 program Program
 {
 	void main() {
-		print(a b); // oporavak treba do zagrade?
-		print(a b, c); // oporavak treba do zagrade?
-		print(a;
-		print(...); // oporavak treba do zagrade?
-		print(...;
-		print(;
+		fun(a b);
+		fun(a b, c);
+		fun(a;
+		read(...);
+		read(...;
+		read(;
+        print(a;
+        print(a b);
+        print(a b, c);
 	}
 }

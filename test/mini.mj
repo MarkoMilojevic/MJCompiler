@@ -1,4 +1,5 @@
 program Program
+	int 55 a;
 	int x; int y;
 {
 	int k() int c; {

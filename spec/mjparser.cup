@@ -76,6 +76,7 @@ non terminal CondFact, CondTerm, Condition ;
 non terminal Matched, Unmatched, Statement, StatementList ;
 non terminal FormPar, FormPars ;
 non terminal Var, VarDecl, VarDeclListTemp, VarDeclList ;
+non terminal LocalVarDeclList, LocalVarDecl, LocalVarDeclListTemp;
 non terminal MethodSignature, MethodCall, MethodName, MethodPars, MethodVarDeclList,  MethodDeclTemp, MethodDecl, MethodDeclList ;
 non terminal ClassName, ClassVarMethodDeclList, ClassDecl ;
 non terminal ConstType, ConstTemp, ConstList, ConstDecl ;
@@ -154,7 +155,7 @@ VarDeclList 		::= VarDeclList VarDecl
 						;
 
 VarDecl				::= Type VarDeclListTemp ;
-				
+                
 VarDeclListTemp 	::= Var COMMA VarDeclListTemp
 						|
 		                Var SEMICOLON
@@ -182,6 +183,28 @@ Var					::= IDENT:varName LBRACK RBRACK
 /* ================ VarDecl ==================== */
 
 
+/* ================ LocalVarDecl ==================== */
+LocalVarDeclList        ::= LocalVarDeclList LocalVarDecl
+                            |
+                            LocalVarDecl
+                            ;
+
+LocalVarDecl            ::= Type LocalVarDeclListTemp ;
+                
+LocalVarDeclListTemp    ::= Var COMMA LocalVarDeclListTemp
+                            |
+                            Var SEMICOLON
+                            ;
+                        
+LocalVarDeclListTemp    ::= error:e SEMICOLON
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from local variable definition until \';\'"); :}
+                            |
+                            error:e
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from local variable definition until \'{\'"); :}
+                            ;
+/* ================ LocalVarDecl ==================== */
+
+
 /* ================ ClassDecl ================== */
 /* ClassDecl = "class" ident ["extends" Type] "{" {VarDecl} ["{" {MethodDecl} "}"] "}" */
 
@@ -190,13 +213,7 @@ ClassDecl               ::= CLASS ClassName LBRACE ClassVarMethodDeclList RBRACE
                             CLASS ClassName EXTENDS ClassName LBRACE ClassVarMethodDeclList RBRACE
                             ;
                             
-ClassDecl               ::= CLASS ClassName LBRACE error:e RBRACE
-                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'}\'"); :}
-                            |
-                            CLASS ClassName EXTENDS ClassName LBRACE error:e RBRACE
-                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'}\'"); :}
-                            |
-                            CLASS ClassName EXTENDS error:e LBRACE ClassVarMethodDeclList RBRACE
+ClassDecl               ::= CLASS ClassName EXTENDS error:e LBRACE ClassVarMethodDeclList RBRACE
                             {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'{\'"); :}
                             ;
                             
@@ -208,6 +225,10 @@ ClassVarMethodDeclList  ::= VarDeclList LBRACE MethodDeclList RBRACE
                             |
                             /* epsilon */
                             ;
+
+ClassVarMethodDeclList  ::= error:e
+                            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from class definition until \'}\'"); :}
+                            ;                            
 /* ================ ClassDecl ================== */
 
 
@@ -241,13 +262,6 @@ MethodDeclTemp      ::= MethodName:methodName LPAREN MethodPars RPAREN MethodVar
 						:}
 						;
 						
-MethodDeclTemp      ::=	MethodName LPAREN error:e RPAREN MethodVarDeclList LBRACE StatementList RBRACE
-						{: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \')\'"); :}
-						|
-						MethodName LPAREN MethodPars RPAREN error:e LBRACE StatementList RBRACE
-						{: parser.log.debug("Successful syntax error recovery in line " + eleft + " from local variables declarations until \'{\'"); :}
-						;
-						
 MethodName          ::= IDENT:methodName
 						{:
 							currentMethod = Tab.insert(Obj.Meth, methodName, currentType);
@@ -261,7 +275,11 @@ MethodPars          ::= FormPars
                         /* epsilon */
                         ;
 
-MethodVarDeclList   ::= VarDeclList
+MethodPars          ::= error:e
+                        {: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \')\'"); :}
+                        ;
+
+MethodVarDeclList   ::= LocalVarDeclList
                         |
                         /* epsilon */
                         ;
@@ -285,7 +303,7 @@ MethodSignature     ::= LPAREN RPAREN
                         ;
                         
 MethodSignature		::=	LPAREN error:e RPAREN
-                        {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \')\'."); :}
+                        {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \')\'"); :}
                         ;
 /* ================ MethodDecl ================= */
 
@@ -296,10 +314,13 @@ MethodSignature		::=	LPAREN error:e RPAREN
 FormPars    ::= FormPar COMMA FormPars
                 |
                 FormPar
-				;
+                ;
 				
 FormPars	::= error:e COMMA FormPars
 				{: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \',\'"); :}
+                |
+                FormPar COMMA error:e
+                {: parser.log.debug("Successful syntax error recovery in line " + eleft + " in formal parameters until \')\'"); :}
                 ;
 
 FormPar     ::= Type IDENT LBRACK RBRACK
@@ -410,8 +431,20 @@ Matched			::= Designator EQ error:e SEMICOLON
                     error:e EQ Expr SEMICOLON
                     {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement."); :}
                     |
-                    error:e SEMICOLON
+                    Designator LPAREN error:e SEMICOLON
                     {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \';\'."); :}
+                    |
+                    READ LPAREN error:e SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \';\'."); :}
+                    |
+                    READ LPAREN error:e RPAREN SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \')\'."); :}
+                    |
+                    PRINT LPAREN error:e SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \';\'."); :}
+                    |
+                    PRINT LPAREN error:e RPAREN SEMICOLON
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \')\'."); :}
                     |
                     IF LPAREN error:e RPAREN Matched ELSE Matched
                     {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from invalid condition expression until \')\'"); :}
@@ -515,7 +548,7 @@ ExprTemp    ::= ExprTemp:te Addop Term:t
 /* ================ Term ======================= */
 /* Term = Factor {Mulop Factor} */
 
-Term    ::= Term Mulop Factor
+Term    ::= Term Mulop Factor Mulop
             |
             Factor:t
             {:
@@ -552,7 +585,7 @@ Factor  ::= Designator:d
             ;
             
 Factor  ::=	NEW Type LBRACK error:e RBRACK
-            {: parser.log.debug("Successful syntax error recovery in line" + eleft + " from array indexing expression until \']\'"); :}
+            {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from array indexing expression until \']\'"); :}
             ;
 /* ================ Factor ===================== */
 
@@ -587,7 +620,7 @@ Designator  ::= Designator DOT IDENT:name
                 ;
                 
 Designator  ::=	Designator LBRACK error:e RBRACK
-                {: parser.log.debug("Successful syntax error recovery in line" + eleft + " from array indexing expression until \']\'"); :}
+                {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from array indexing expression until \']\'"); :}
                 ;
 /* ================ Designator ================= */
 

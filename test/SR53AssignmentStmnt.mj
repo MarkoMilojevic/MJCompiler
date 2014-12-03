@@ -4,5 +4,7 @@ program Program
 	void main() {
 		c[2] = j++;
 		c = bulova++;
+        c[2++] = j++;
+        c++ = bulova;
 	}
 }

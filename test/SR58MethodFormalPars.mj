@@ -3,13 +3,11 @@ program Program
 {
 	int f(a) {}
 	
-	int g(a b) {} // ne detektuje gresku
-	
 	int h(int a b) {}
 	
-	int l(int a b, c) {} // treba da se oporavi do zareza
+	int l(int a b, c) {}
 	
-	int m(int a, b c) {} // ne detektuje gresku
+	int m(int a, int b c) {}
 	
 	int n(int) {}
 	

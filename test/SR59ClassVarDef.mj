@@ -5,7 +5,7 @@ program Program
 		int a, b c;
 		int a b, ;
 		int a b;
-		char e = '2' // ne oporavlja se do '}'
+		char e
 	}
 	
 {

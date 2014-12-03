@@ -21,7 +21,7 @@ public class MJParserTest {
 	public static void main(String[] args) throws Exception {
 		Logger log = Logger.getLogger(MJParserTest.class);
 		
-		File sourceCode = new File("test/mini.mj");
+		File sourceCode = new File("test/SR51GlobalVarDef.mj");
 		try (Reader br = new BufferedReader((new FileReader(sourceCode)));) {
 			log.info("Compiling source file: " + sourceCode.getAbsolutePath());			
 			Yylex lexer = new Yylex(br);			
