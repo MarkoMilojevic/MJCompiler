@@ -1,93 +1,38 @@
-program MicroJavaTest
-	int a;
-	const int q = 0;
-	int b, c;
-	const int r = 0, s = 0;
-	int d, e, f;
-	const int t = 0, u = 0, v = 0;
-	
-	class Foo {
-		int a;
-		int b, c;
-		int d, e, f;
+program Program 
+	class A {
+		int x[],y[];
 	}
-
-	int g[];
-	const char w = 'a';
-	int h[], i[];
-	const boolean y = true, z = false;
 	
-	class Bar extends Foo {
-		int g[];
-		int h[], i[];
-		
+	const int pi = 3, e = 2;
+	
+	class B extends A {
+		int i; int x[];
 		{
-		
+			int getValue(int a) int b; bool c;
+			{ return i + x[0] + a; }
 		}
 	}
 	
-	int j[], k[], l[];
-	const String x = "abc";
-	int m, n[], o, p[];
-
-	class FooBar extends Bar {
-		int j[], k[], l[];
-		int m, n[], o, p[];
-		
-		{
-			void fun() {}
-			int func(int formPar) {}
-			int func(int formPar1, int formPar2) {}
-			int func(int formPar1, int formPar2, int formPar3) {}
-			int func(int formPar[]) {}
-			int func(int formPar1[], int formPar2[]) {}
-			int func(int formPar1[], int formPar2[], int formPar3[]) {}
-			int func(int formPar1, int formPar2[], int formPar3, int formPar4[]) {}
-			int func1() int a; {}
-			int func2() int a, b; {}
-			int func3() int a, b, c; {}
-			int func4() int a[]; {}
-			int func5() int a[], b[]; {}
-			int func6() int a[], b[], c[]; {}
-			int func7() int a, b[], c, d[]; {}
-			int func8() int a; char b; Strin c; bool d; {}
-			int func9(int formPar) int a, b; {}
-			int func10(int formPar1, int formPar2) int a, b, c; {}
-			int func11(int formPar1, int formPar2, int formPar3) int a[]; {}
-			int func12(int formPar[]) int a[], b[]; {}
-			int func13(int formPar1[], int formPar2[]) int a[], b[], c[]; {}
-			int func14(int formPar1[], int formPar2[], int formPar3[]) int a, b[], c, d[]; {}
-			int func15(int formPar1, int formPar2[], int formPar3, int formPar4[]) int a; char b; Strin c; bool d; {}
-		}
+	class C extends B {
+		A theA;
+		string a;
 	}
-
+	
 {
-	void fun() {}
-	int func(int formPar) {}
-	int func(int formPar1, int formPar2) {}
-	int func(int formPar1, int formPar2, int formPar3) {}
-	int func(int formPar1, int formPar2, int formPar3) {}
-	int func(int formPar[]) {}
-	int func(int formPar1[], int formPar2[]) {}
-	int func(int formPar1[], int formPar2[], int formPar3[]) {}
-	int func(int formPar1, int formPar2[], int formPar3, int formPar4) {}
-	int func1() int a; {}
-	int func2() int a, b; {}
-	int func3() int a, b, c; {}
-	int func4() int a[]; {}
-	int func5() int a[], b[]; {}
-	int func6() int a[], b[], c[]; {}
-	int func7() int a, b[], c, d[]; {}
-	int func8() int a; char b; Strin c; bool d; {}
-	int func9(int formPar) int a, b; {}
-	int func10(int formPar1, int formPar2) int a, b, c; {}
-	int func11(int formPar1, int formPar2, int formPar3) int a[]; {}
-	int func12(int formPar[]) int a[], b[]; {}
-	int func13(int formPar1[], int formPar2[]) int a[], b[], c[]; {}
-	int func14(int formPar1[], int formPar2[], int formPar3[]) int a, b[], c, d[]; {}
-	int func15(int formPar1, int formPar2[], int formPar3, int formPar4[]) int a; char b; Strin c; bool d; {}
-	
-	void main() int x, y, z; {
-		
+	void main() A a; C c; int i; int x[]; string s; {
+		a = new A;
+		a.x = new int[5];
+		a.y = new int[5];
+		c = new C;
+		c.theA = a;
+		c.x = new int[5];
+		x = new int[3];
+		i=0; read(c.i);
+		while(i<5) {
+			read(c.x[i]);
+			read(c.theA.x[i]);
+			i++;
+		}
+		print(c.getValue(c.theA.x[0]));
 	}
 }

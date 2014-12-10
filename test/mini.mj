@@ -1,17 +1,6 @@
 program Program
-	int 55 a;
-	int x; int y;
-{
-	int k() int c; {
-		c = 0;
-		return c + 3;
-	}
-	
+{	
 	void main() {
-		print(1);
-		x = y + 3;
-		k();
-		print(2);
 		return;
 	}
 }
