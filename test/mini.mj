@@ -1,6 +1,6 @@
 program Program
-{	
+{
 	void main() {
-		return;
+        
 	}
 }
