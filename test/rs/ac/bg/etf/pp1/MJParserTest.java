@@ -21,7 +21,7 @@ public class MJParserTest {
 	public static void main(String[] args) throws Exception {
 		Logger log = Logger.getLogger(MJParserTest.class);
 		
-		File sourceCode = new File("Testovi - Sintaksa & Semantika/test10.mj");
+		File sourceCode = new File("test/mini.mj");
 		try (Reader br = new BufferedReader((new FileReader(sourceCode)));) {
 			log.info("Compiling source file: " + sourceCode.getAbsolutePath());			
 			Yylex lexer = new Yylex(br);			
@@ -34,18 +34,17 @@ public class MJParserTest {
 				
 			}
 			
-			Tab.dump();
-			/*
-			log.info("Broj deklaracije globalnih promenljivih tipa char: ");
-			log.info("Broj deklaracije globalnih nizova: ");
-			log.info("Broj definicija funkcija u glavnom programu: ");
-			log.info("Broj definicija unutrasnjih klasa: ");
-			log.info("Broj blokova naredbi: ");
-			log.info("Broj poziva funkcija u telu metode main: ");
-			log.info("Broj naredbi instanciranja objekata: " );
-			log.info("Broj definicija metoda unutrasnjih klasa: ");
-			log.info("Broj deklaracija polja unutrasnjih klasa: ");
-			log.info("Broj izvodjenja klasa: " ); */
+			Tab.dump();			
+			log.info("Broj deklaracije globalnih promenljivih tipa char: " + p.globalVarCharDecl);
+			log.info("Broj deklaracije globalnih nizova: " + p.globalArrayDecl);
+			log.info("Broj definicija funkcija u glavnom programu: " + p.globalMethodCount);
+			log.info("Broj definicija unutrasnjih klasa: " + p.classCount);
+			log.info("Broj blokova naredbi: " + p.statementBlockCount);
+			log.info("Broj poziva funkcija u telu metode main: " + p.methodCallsInMainCount);
+			log.info("Broj naredbi instanciranja objekata: " + p.newStatementCount);
+			log.info("Broj definicija metoda unutrasnjih klasa: " + p.classMethodCount);
+			log.info("Broj deklaracija polja unutrasnjih klasa: " + p.classFieldCount);
+			log.info("Broj izvodjenja klasa: " + p.inheritenceCount);
 		}
 	}
 }

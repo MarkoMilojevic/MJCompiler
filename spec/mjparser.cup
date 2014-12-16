@@ -10,6 +10,16 @@ import rs.etf.pp1.symboltable.structure.*;
 
 parser code {:
     boolean errorDetected = false;
+    int globalVarCharDecl = 0;
+    int globalArrayDecl = 0;
+    int globalMethodCount = 0;
+    int classCount = 0;
+    int statementBlockCount = 0;
+    int methodCallsInMainCount = 0;
+    int newStatementCount = 0;
+    int classMethodCount = 0;
+    int classFieldCount = 0;
+    int inheritenceCount = 0;
 
     Logger log = Logger.getLogger(getClass())
 ;    
@@ -107,7 +117,7 @@ non terminal Obj ClassName ;
 non terminal Integer FormPars ;
 non terminal Obj Designator ;
 non terminal Struct MethodCall, Factor, Term, ExprTemp, Expr, Type ;
-non terminal Stack<Struct> ActPars, MethodSignature ;
+non terminal LinkedList<Struct> ActPars, MethodSignature ;
 
 /* ================ Program ==================== */
 /* Program = "program" ident {ConstDecl | VarDecl | ClassDecl} "{" {MethodDecl} "}". */
@@ -217,6 +227,13 @@ Var					::= IDENT:varName LBRACK RBRACK
     							parser.log.info("Variable declared \'" + varName + "\'[] in line " + varNameleft);
     							int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
                                 Tab.insert(objKind, varName, new Struct(Struct.Array, currentType));
+                                if (!inClass && !inMethod) {
+                                    parser.globalArrayDecl++;
+                                }
+
+                                if (objKind == Obj.Fld) {
+                                    parser.classFieldCount++;
+                                }
                             }
 						:}
 						|
@@ -229,6 +246,13 @@ Var					::= IDENT:varName LBRACK RBRACK
     							parser.log.info("Variable declared \'" + varName + "\' in line " + varNameleft);
     							int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
                                 Tab.insert(objKind, varName, currentType);
+                                if (currentType == Tab.charType && !inClass && !inMethod) {
+                                    parser.globalVarCharDecl++;
+                                }
+
+                                if (objKind == Obj.Fld) {
+                                    parser.classFieldCount++;
+                                }
                             }
 						:}
 						;
@@ -281,6 +305,8 @@ ClassDecl               ::= CLASS ClassName LBRACE ClassVarMethodDeclList RBRACE
                                         }
                                     }
                                 }
+
+                                parser.inheritenceCount++;
                             :}
                             LBRACE ClassVarMethodDeclList RBRACE ClassCloseDecl
                             ;
@@ -295,6 +321,7 @@ ClassName               ::= IDENT:className
                                 currentClass = Tab.insert(Obj.Type, className, new Struct(Struct.Class));
                                 Tab.openScope();
                                 parser.log.info("Class declared \'" + className + "\' in line " + classNameleft);
+                                parser.classCount++;
                             :}
                             ;
 
@@ -339,6 +366,7 @@ MethodDecl          ::= MethodType MethodName LPAREN MethodPars RPAREN MethodVar
                             returnFound = false;
                             inMethod = false;
                             currentMethod = Tab.noObj;
+                            parser.statementBlockCount++;
                         :}
                         ;
                         
@@ -368,6 +396,12 @@ MethodName          ::= IDENT:methodName
 
 							Tab.openScope();
 							parser.report_info("Processing method \'" + methodName + "\' in line " + methodNameleft, null);
+
+                            if (!inClass) {
+                                parser.globalMethodCount++;
+                            } else {
+                                parser.classMethodCount++;
+                            }
 						:}
 						;
 
@@ -392,28 +426,32 @@ MethodVarDeclList   ::= LocalVarDeclList
                         
 MethodCall          ::= Designator:func MethodSignature:sign
 						{:
+                            String funcName = func.getName().substring(func.getName().lastIndexOf('.') + 1);
 							if (func.getKind() == Obj.Meth) {
-								parser.report_info("Method call found \'" + func.getName() + "\' in line " + funcleft, null);
+								parser.report_info("Method call found \'" + funcName + "\' in line " + funcleft, null);
                                 if(sign.size() != func.getLevel()) {
                                     parser.report_error("Semantical error in line " + funcleft + " : "
-                                        + "Parameter count mismatch for function \'" + func.getName() + "\'", null);
+                                        + "Parameter count mismatch for function \'" + funcName + "\'", null);
                                 } else {
                                     for(Obj param : func.getLocalSymbols()) {
-                                        if (sign.empty()) {
+                                        if (sign.size() == 0) {
                                             break;
                                         }
 
-                                        if (!sign.pop().assignableTo(param.getType())) {
+                                        if (!sign.removeFirst().assignableTo(param.getType())) {
                                             parser.report_error("Semantical error in line " + funcleft + " : "
-                                                + "Incompatible parameter type for function \'" + func.getName() + "\'", null);
+                                                + "Incompatible parameter type for function \'" + funcName + "\'", null);
                                         }
                                     }                                    
                                 }                                
 
 								RESULT = func.getType();
+                                if (currentMethod.getName().equals("main") && !inClass) {
+                                    parser.methodCallsInMainCount++;
+                                }
 							}
 							else {
-								parser.report_error("Semantical error in line " + funcleft + " : Identifier \'" + func.getName() + "\' is not a function", null);
+								parser.report_error("Semantical error in line " + funcleft + " : Identifier \'" + funcName + "\' is not a function", null);
 								RESULT = Tab.noType;
 							}
 						:}
@@ -423,7 +461,7 @@ MethodSignature     ::= LPAREN ActPars:ap RPAREN
                         {: RESULT = ap; :}
                         |
                         LPAREN RPAREN
-                        {: RESULT = new Stack<Struct>(); :}
+                        {: RESULT = new LinkedList<Struct>(); :}
                         ;
                         
 MethodSignature		::=	LPAREN error:e RPAREN
@@ -598,6 +636,7 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     :}
                     |
                     LBRACE StatementList RBRACE
+                    {: parser.statementBlockCount++; :}
                     ;
                     
 Matched			::= Designator EQ error:e SEMICOLON
@@ -661,13 +700,13 @@ ExitLoop        ::= {: inLoop = false; :} ;
 ActPars ::= ActPars:ap COMMA Expr:e
             {: 
                 RESULT = ap;
-                RESULT.push(e);  
+                RESULT.add(e);  
             :}
             |
             Expr:e
             {: 
-                RESULT = new Stack<Struct>();
-                RESULT.push(e);  
+                RESULT = new LinkedList<Struct>();
+                RESULT.add(e);  
             :}
             ;
 /* ================ ActPars ==================== */
@@ -802,6 +841,7 @@ Factor  ::= Designator:d
                 }
 
                 RESULT = t;
+                parser.newStatementCount++;
             :}
             |
             NEW Type:t LBRACK Expr:e RBRACK
@@ -811,6 +851,7 @@ Factor  ::= Designator:d
                 }
 
                 RESULT = new Struct(Struct.Array, t);
+                parser.newStatementCount++;
             :}
             |
             LPAREN Expr:e RPAREN
