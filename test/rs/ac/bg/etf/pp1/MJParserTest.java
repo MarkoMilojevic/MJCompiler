@@ -8,6 +8,7 @@ import org.apache.log4j.*;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import rs.ac.bg.etf.pp1.util.Log4JUtils;
+import rs.etf.pp1.mj.runtime.*;
 import rs.etf.pp1.symboltable.Tab;
 
 public class MJParserTest {
@@ -21,7 +22,7 @@ public class MJParserTest {
 	public static void main(String[] args) throws Exception {
 		Logger log = Logger.getLogger(MJParserTest.class);
 		
-		File sourceCode = new File("test/mini.mj");
+		File sourceCode = new File("Testovi - Generisanje Koda/test301.mj");
 		try (Reader br = new BufferedReader((new FileReader(sourceCode)));) {
 			log.info("Compiling source file: " + sourceCode.getAbsolutePath());			
 			Yylex lexer = new Yylex(br);			
@@ -34,7 +35,7 @@ public class MJParserTest {
 				
 			}
 			
-			Tab.dump();			
+			Tab.dump();
 			log.info("Broj deklaracije globalnih promenljivih tipa char: " + p.globalVarCharDecl);
 			log.info("Broj deklaracije globalnih nizova: " + p.globalArrayDecl);
 			log.info("Broj definicija funkcija u glavnom programu: " + p.globalMethodCount);
@@ -45,6 +46,17 @@ public class MJParserTest {
 			log.info("Broj definicija metoda unutrasnjih klasa: " + p.classMethodCount);
 			log.info("Broj deklaracija polja unutrasnjih klasa: " + p.classFieldCount);
 			log.info("Broj izvodjenja klasa: " + p.inheritenceCount);
+			if (!p.errorDetected) {
+				File objFile = new File("test/program.obj");
+				if (objFile.exists()) {
+					objFile.delete();
+				}
+
+				Code.write(new FileOutputStream(objFile));
+				log.info("Parsing completed successfully!");
+			} else {
+				log.error("Parsing completed with errors!");
+			}
 		}
 	}
 }

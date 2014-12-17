@@ -4,6 +4,7 @@ import java_cup.runtime.*;
 import java.io.*;
 import java.util.*;
 import org.apache.log4j.*;
+import rs.etf.pp1.mj.runtime.*;
 import rs.etf.pp1.symboltable.*;
 import rs.etf.pp1.symboltable.concepts.*;
 import rs.etf.pp1.symboltable.structure.*;
@@ -21,8 +22,8 @@ parser code {:
     int classFieldCount = 0;
     int inheritenceCount = 0;
 
-    Logger log = Logger.getLogger(getClass())
-;    
+    Logger log = Logger.getLogger(getClass());
+
     public void report_fatal_error(String message, Object info) throws java.lang.Exception {
         done_parsing();
         report_error(message, info);
@@ -89,10 +90,10 @@ action code {:
 
 terminal PROGRAM, BREAK, CLASS, CONST, ELSE, EXTENDS, IF, NEW, PRINT, READ, RETURN, VOID, WHILE ;
 
-terminal String     IDENT ;
 terminal Integer    NUMBER ;
 terminal Character  CHAR ;
 terminal Boolean    BOOL ;
+terminal String     IDENT ;
 terminal String     STRING ;
 
 terminal PLUS, MINUS, MULT, DIV, MOD, EQEQ, NOTEQ, GT, GTEQ, LT, LTEQ, ANDAND, OROR, EQ, PLUSPLUS, MINUSMINUS;
@@ -108,7 +109,6 @@ non terminal LocalVarDeclList, LocalVarDecl, LocalVarDeclListTemp;
 non terminal FormPar ;
 non terminal Matched, Unmatched, Statement, StatementList ;
 non terminal CondFact, CondTerm, Condition ;
-non terminal Addop, Mulop, Relop ;
 non terminal EnterLoop, ExitLoop ;
 
 non terminal Obj ProgramName ;
@@ -118,6 +118,7 @@ non terminal Integer FormPars ;
 non terminal Obj Designator ;
 non terminal Struct MethodCall, Factor, Term, ExprTemp, Expr, Type ;
 non terminal LinkedList<Struct> ActPars, MethodSignature ;
+non terminal Integer Addop, Mulop, Relop ;
 
 /* ================ Program ==================== */
 /* Program = "program" ident {ConstDecl | VarDecl | ClassDecl} "{" {MethodDecl} "}". */
@@ -176,22 +177,34 @@ ConstTemp   ::= IDENT:constName EQ ConstType:t
                         parser.report_error("Semantical error in line " + constNameleft + " : Incompatible type for constant \'" + constName + "\'", null);
                     } else {
                         parser.log.info("Constant declared \'" + constName + "\' in line " + constNameleft);
-                        Tab.insert(Obj.Con, constName, currentType);
+                        Obj o = Tab.insert(Obj.Con, constName, currentType);
+                        o.setAdr(t.getAdr());
                     }
                 :}
                 ;
 
-ConstType   ::= NUMBER:t
-                {: RESULT = new Obj(Obj.Con, "", Tab.intType); :}
+ConstType   ::= NUMBER:i
+                {:
+                    RESULT = new Obj(Obj.Con, "", Tab.intType);
+                    RESULT.setAdr((i.intValue()));
+                :}
                 |
-                CHAR:t
-                {: RESULT = new Obj(Obj.Con, "", Tab.charType); :}
+                CHAR:c
+                {:
+                    RESULT = new Obj(Obj.Con, "", Tab.charType);
+                    RESULT.setAdr(c);
+                :}
                 |
-                BOOL:t
-                {: RESULT = new Obj(Obj.Con, "", boolType); :}
+                BOOL:b
+                {:
+                    RESULT = new Obj(Obj.Con, "", boolType);
+                    RESULT.setAdr(b ? 1 : 0);
+                :}
                 |
-                STRING:t
-                {: RESULT = new Obj(Obj.Con, "", stringType); :}
+                STRING:s
+                {:
+                    RESULT = new Obj(Obj.Con, "", stringType);
+                :}
                 ;
 /* ================ ConstDecl ================== */
 
@@ -229,6 +242,7 @@ Var					::= IDENT:varName LBRACK RBRACK
                                 Tab.insert(objKind, varName, new Struct(Struct.Array, currentType));
                                 if (!inClass && !inMethod) {
                                     parser.globalArrayDecl++;
+                                    Code.dataSize++;
                                 }
 
                                 if (objKind == Obj.Fld) {
@@ -246,8 +260,11 @@ Var					::= IDENT:varName LBRACK RBRACK
     							parser.log.info("Variable declared \'" + varName + "\' in line " + varNameleft);
     							int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
                                 Tab.insert(objKind, varName, currentType);
-                                if (currentType == Tab.charType && !inClass && !inMethod) {
-                                    parser.globalVarCharDecl++;
+                                if (!inClass && !inMethod) {
+                                    Code.dataSize++;
+                                    if (currentType == Tab.charType) {
+                                        parser.globalVarCharDecl++;
+                                    }
                                 }
 
                                 if (objKind == Obj.Fld) {
@@ -355,12 +372,21 @@ MethodDeclList      ::= MethodDeclList MethodDecl
                         /* epsilon */
                         ;
                             
-MethodDecl          ::= MethodType MethodName LPAREN MethodPars RPAREN MethodVarDeclList LBRACE StatementList RBRACE
+MethodDecl          ::= MethodType MethodName LPAREN MethodPars RPAREN MethodVarDeclList LBRACE
+                        {:
+                            Code.put(Code.enter);
+                            int paramCount = currentMethod.getLevel();
+                            Code.put(paramCount);
+                            Code.put(Tab.currentScope().getnVars());
+                        :}
+                        StatementList RBRACE
                         {:                            
                             if (!returnFound && currentMethod.getType() != Tab.noType && !currentMethod.getName().equals("main")) {
                                 parser.report_error("Semantical error: Function \'" + currentMethod.getName() + "\' does not have return statement", null);
                             }
                             
+                            Code.put(Code.exit);
+                            Code.put(Code.return_);
                             Tab.chainLocalSymbols(currentMethod);
                             Tab.closeScope();
                             returnFound = false;
@@ -379,19 +405,20 @@ MethodType          ::= Type
 MethodName          ::= IDENT:methodName
 						{:
                             inMethod = true;
-                            if (methodName.equals("main") && !inClass) {
-                                mainFound = true;
-                                if (currentType != Tab.noType) {
-                                    parser.report_error("Semantical error: Function 'main' must have 'void' return type", null);
-                                }
-                            }
-
                             Obj obj = Tab.currentScope().findSymbol(methodName);
                             if (obj != null && obj.getKind() == Obj.Meth) {
                                 parser.report_error("Semantical error in line " + methodNameleft + " : Method \'" + methodName + "\' already declared", null);
                                 currentMethod = obj;
                             } else {
                                 currentMethod = Tab.insert(Obj.Meth, methodName, currentType);
+                                currentMethod.setAdr(Code.pc);
+                                if ("main".equals(methodName) && !inClass) {
+                                    mainFound = true;
+                                    Code.mainPc = Code.pc;
+                                    if (currentType != Tab.noType) {
+                                        parser.report_error("Semantical error: Function 'main' must have 'void' return type", null);
+                                    }
+                                }
                             }
 
 							Tab.openScope();
@@ -561,7 +588,9 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                             parser.report_error("Semantical error in line " + dleft + " : Cannot assign value to a constant", null);
                         } else if (!e.assignableTo(d.getType())) {
 							parser.report_error("Semantical error in line " + dleft + " : Incompatible types", null);
-						}
+						} else {
+                            Code.store(d);
+                        }
 					:}
                     |
                     MethodCall SEMICOLON
@@ -571,6 +600,11 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
                             parser.report_error("Semantical error in line " + dleft + " : Unary operator \'++\' only applicalble to non-const int type", null);
                         }
+
+                        Code.load(d);
+                        Code.put(Code.const_1);
+                        Code.put(Code.add);
+                        Code.store(d);
                     :}
                     |
                     Designator:d MINUSMINUS SEMICOLON
@@ -578,6 +612,11 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
                             parser.report_error("Semantical error in line " + dleft + " : Unary operator \'--\' only applicalble to non-const int type", null);
                         }
+
+                        Code.load(d);
+                        Code.put(Code.const_1);
+                        Code.put(Code.sub);
+                        Code.store(d);
                     :}
                     |
                     IF LPAREN Condition RPAREN Matched ELSE Matched
@@ -619,13 +658,19 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                         } else if (d.getType() != Tab.intType && d.getType() != Tab.charType && d.getType() != boolType && d.getType() != stringType) {
                             parser.report_error("Semantical error in line " + dleft + " : Invalid parameter type for \'read\'", null);
                         }
+
+                        Code.put(d.getType() != Tab.charType ? Code.read : Code.bread);
+                        Code.store(d);
                     :}
                     |
-                    PRINT LPAREN Expr:e COMMA NUMBER RPAREN SEMICOLON
+                    PRINT LPAREN Expr:e COMMA NUMBER:i RPAREN SEMICOLON
                     {:
                         if (e != Tab.intType && e != Tab.charType && e != boolType &&e != stringType) {
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
                         }
+
+                        Code.loadConst(i.intValue());
+                        Code.put(e != Tab.charType ? Code.print : Code.bprint);
                     :}
                     |
                     PRINT LPAREN Expr:e RPAREN SEMICOLON
@@ -633,6 +678,9 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                         if (e != Tab.intType && e != Tab.charType && e != boolType && e != stringType) {
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
                         }
+
+                        Code.loadConst(Code.const_n + 0);
+                        Code.put(e != Tab.charType ? Code.print : Code.bprint);
                     :}
                     |
                     LBRACE StatementList RBRACE
@@ -735,13 +783,17 @@ CondTerm    ::= CondTerm ANDAND CondFact
 /* ================ CondFact =================== */
 /* CondFact = Expr [Relop Expr] */
 
-CondFact    ::= Expr:e1 Relop Expr:e2
+CondFact    ::= Expr:e1 Relop:op Expr:e2
                 {:
                     if (!e1.compatibleWith(e2)) {
                         parser.report_error("Semantical error in line " + e1left + " : Incompatible types", null);
                     }
 
-                    // TODO: restrict class and array type to == and != RELOP
+                    if (op != Code.eq && op != Code.ne) {
+                        if (e1.getKind() == Struct.Class && e2.getKind() == Struct.Class) {
+                            parser.report_error("Semantical error in line " + e1left + " : Only \'==\' and \'!=\' operators are applicalble to class types", null);
+                        }
+                    }
                 :}
                 |
                 Expr
@@ -758,6 +810,7 @@ Expr        ::= MINUS ExprTemp:e
                         parser.report_error("Semantical error in line " + eleft + " : Unary operator \'-\' only applicalble to int type", null);
                     }
 
+                    Code.put(Code.neg);
 					RESULT = e;
 				:}
                 |
@@ -767,16 +820,25 @@ Expr        ::= MINUS ExprTemp:e
 				:}
                 ;
 
-ExprTemp    ::= ExprTemp:e Addop Term:t
+ExprTemp    ::= ExprTemp:e Addop:op Term:t
 				{:
 					if (!e.compatibleWith(t)) {
                         parser.report_error("Semantical error in line " + eleft + " : Incompatible types", null);
                         RESULT = Tab.noType;
                     }
 
-					RESULT = e;
+                    if (op != Code.add) {
+                        if (e != Tab.intType || t != Tab.intType) {
+                            parser.report_error("Semantical error in line " + eleft + " : Variables must be int type", null);    
+                        }
+                    } else {
+                        if ((e != Tab.intType || t != Tab.intType) && (e != stringType || t != stringType))  {
+                            parser.report_error("Semantical error in line " + eleft + " : Variables must be int or string type", null);    
+                        }
+                    }
 
-                    // TODO: restrict Addop to ints except '+' for strings
+                    Code.put(op);
+					RESULT = e;
 				:}
                 |
                 Term:t
@@ -790,7 +852,7 @@ ExprTemp    ::= ExprTemp:e Addop Term:t
 /* ================ Term ======================= */
 /* Term = Factor {Mulop Factor} */
 
-Term    ::= Term:t Mulop Factor:f
+Term    ::= Term:t Mulop:op Factor:f
             {:
                 if (t != Tab.intType || f != Tab.intType) {
                     parser.report_error("Semantical error in line " + tleft + " : Variables must be int type", null);
@@ -800,6 +862,7 @@ Term    ::= Term:t Mulop Factor:f
                     parser.report_error("Semantical error in line " + tleft + " : Incompatible types", null);
                 }
 
+                Code.put(op);
                 RESULT = t;
             :}
             |
@@ -816,23 +879,18 @@ Term    ::= Term:t Mulop Factor:f
 
 Factor  ::= Designator:d
 			{:
+                Code.load(d);
             	RESULT = d.getType();
             :}
             |
             MethodCall:t
             {: RESULT = t; :}
             |
-            NUMBER
-            {: RESULT = Tab.intType; :}
-            |
-            CHAR
-            {: RESULT = Tab.charType; :}
-            |
-            BOOL
-            {: RESULT = boolType; :}
-            |
-            STRING
-            {: RESULT = stringType; :}
+            ConstType:c
+            {:
+                Code.load(c);
+                RESULT = c.getType();
+            :}
             |
             NEW Type:t
             {:
@@ -850,6 +908,8 @@ Factor  ::= Designator:d
                     parser.report_error("Semantical error in line " + tleft + " : Indexer must be int type", null);
                 }
 
+                Code.put(Code.newarray);
+                Code.put(currentType == Tab.charType ? 0 : 1);
                 RESULT = new Struct(Struct.Array, t);
                 parser.newStatementCount++;
             :}
@@ -886,6 +946,7 @@ Designator  ::= Designator:d DOT IDENT:name
                             } while (maxInheritenceCount++ < 30);
 
                             if (isFound) {
+                                Code.load(d);
                                 break;
                             }
                         }
@@ -900,7 +961,7 @@ Designator  ::= Designator:d DOT IDENT:name
                 	RESULT = obj;
 				:}
                 |
-                Designator:d LBRACK Expr:e RBRACK
+                Designator:d LBRACK {: Code.load(d); :} Expr:e RBRACK
                 {:
                     if (e != Tab.intType) {
                         parser.report_error("Semantical error in line " + dleft + " : Indexer must be int type", null);
@@ -908,7 +969,7 @@ Designator  ::= Designator:d DOT IDENT:name
 
                     if (d.getType() == stringType) {
                         RESULT = new Obj(Obj.Elem, "", Tab.charType);
-                    } else if (d.getType().getKind() == Struct.Array) { 
+                    } else if (d.getType().getKind() == Struct.Array) {
                         RESULT = new Obj(Obj.Elem, "", d.getType().getElemType());
                     } else {
                         parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + d.getName() + "\' is not an array type", null);
@@ -954,16 +1015,34 @@ Designator  ::=	Designator:d LBRACK error:e RBRACK
 /* Relop = "==" | "!=" | ">" | ">=" | "<" | "<=" */
 
 Relop   ::= EQEQ
+            {:
+                RESULT = Code.eq;
+            :}
             |
             NOTEQ
+            {:
+                RESULT = Code.ne;
+            :}
             |
             GT
+            {:
+                RESULT = Code.gt;
+            :}
             |
             GTEQ
+            {:
+                RESULT = Code.ge;
+            :}
             |
             LT
+            {:
+                RESULT = Code.lt;
+            :}
             |
             LTEQ
+            {:
+                RESULT = Code.le;
+            :}
             ;
 /* ================ Relop ====================== */
 
@@ -972,8 +1051,14 @@ Relop   ::= EQEQ
 /* Addop = "+" | "-" */
 
 Addop   ::= PLUS
+            {:
+                RESULT = Code.add;
+            :}
             |
             MINUS
+            {:
+                RESULT = Code.sub;
+            :}
             ;
 /* ================ Addop ====================== */
 
@@ -982,9 +1067,18 @@ Addop   ::= PLUS
 /* Mulop = "*" | "/" | "%" */
 
 Mulop   ::= MULT
+            {:
+                RESULT = Code.mul;
+            :}
             |
             DIV
+            {:
+                RESULT = Code.div;
+            :}
             |
             MOD
+            {:
+                RESULT = Code.rem;
+            :}
             ;
 /* ================ Mulop ====================== */

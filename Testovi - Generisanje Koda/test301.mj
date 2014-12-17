@@ -15,14 +15,16 @@ program test301
 		bodovi++;
 		bodovi = bodovi + jedan;
 		bodovi--;
-		print(bodovi); 
+		print(bodovi);
+		print('\n'); 
 			//izlaz 1
 		
 		niz = new int[2];
 		niz[0] = pet;
 		niz[1] = 10;
 		bodovi = niz[1] / niz[0];
-		print(bodovi); 
+		print(bodovi);
+		print('\n');
 			//izlaz 2
 		
 		nizch = new char[3];
@@ -30,11 +32,14 @@ program test301
 		nizch[jedan] = 'b';
 		nizch[pet - 3] = 'c';
 		print( nizch[2 - 1]);
+		print('\n');
 		print( nizch[jedan * 2]);
+		print('\n');
 			//izlaz b c
 		
 		bodovi = (pet * jedan - 1) * 2 - (3 % 2 + 3 * 2 - 3) - 1 * 0; 
 		print(bodovi);
+		print('\n');
 			//izlaz 4
 			
 		read(bodovi);

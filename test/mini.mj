@@ -1,6 +1,27 @@
 program Program
+    int x, y, z;
+    char a;
+    bool t, f;
+    int xx[];
+    char cc[];
+    bool tt[];
 {
 	void main() {
-
+        x = 1;
+        xx = new int[10];
+        xx[0] = 15;
+        print(xx[0]);
+        print('\n');
+        print(x);
+        print('\n');
+        a = 'A';
+        print(a);
+        print('\n');
+        t = true;
+        print(t);
+        print('\n');
+        f = false;
+        print(f);
+        print('\n');
 	}
 }
