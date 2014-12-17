@@ -22,18 +22,24 @@ public class MJParserTest {
 	public static void main(String[] args) throws Exception {
 		Logger log = Logger.getLogger(MJParserTest.class);
 		
-		File sourceCode = new File("Testovi - Generisanje Koda/test301.mj");
-		try (Reader br = new BufferedReader((new FileReader(sourceCode)));) {
-			log.info("Compiling source file: " + sourceCode.getAbsolutePath());			
+		Reader br = null;
+		try {
+			if (args.length < 2) {
+				log.error("Arguments required: <source-file> <obj file>");
+				return;
+			}
+			File sourceCode = new File(args[0]);
+			if (!sourceCode.exists()) {
+				log.error("File \'" + sourceCode.getAbsolutePath() + "\' not found");
+				return;
+			}
+			
+			log.info("Compiling source file: " + sourceCode.getAbsolutePath());
+			br = new BufferedReader(new FileReader(sourceCode));
 			Yylex lexer = new Yylex(br);			
 			MJParser p = new MJParser(lexer);
 			Symbol s = p.parse();
 			int x = 0;
-			while(++x < 2000000000) {
-				int y = 0;
-				while (++y < 200000000);
-				
-			}
 			
 			Tab.dump();
 			log.info("Broj deklaracije globalnih promenljivih tipa char: " + p.globalVarCharDecl);
@@ -47,7 +53,7 @@ public class MJParserTest {
 			log.info("Broj deklaracija polja unutrasnjih klasa: " + p.classFieldCount);
 			log.info("Broj izvodjenja klasa: " + p.inheritenceCount);
 			if (!p.errorDetected) {
-				File objFile = new File("test/program.obj");
+				File objFile = new File(args[1]);
 				if (objFile.exists()) {
 					objFile.delete();
 				}
@@ -56,6 +62,14 @@ public class MJParserTest {
 				log.info("Parsing completed successfully!");
 			} else {
 				log.error("Parsing completed with errors!");
+			}
+		} finally {
+			if (br != null) {
+				try {
+					br.close();
+				} catch (IOException e1) {
+					log.error(e1.getMessage(), e1);
+				}
 			}
 		}
 	}

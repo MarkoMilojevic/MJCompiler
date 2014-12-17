@@ -550,7 +550,7 @@ Type    ::= IDENT:typeName
 						RESULT = typeNode.getType();
 					}
 					else {
-						parser.report_error("Semantical error in line" + typeNameleft + " : Identifier \'" + typeName + "\' does not represent a type", null);
+						parser.report_error("Semantical error in line " + typeNameleft + " : Identifier \'" + typeName + "\' does not represent a type", null);
 						currentType = Tab.noType;
 						RESULT = Tab.noType;
 					}
@@ -586,7 +586,7 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
 					{:
                         if (d.getKind() == Obj.Con) {
                             parser.report_error("Semantical error in line " + dleft + " : Cannot assign value to a constant", null);
-                        } else if (!e.assignableTo(d.getType())) {
+                        } else if ((d.getType().getKind() != Struct.Class || e.getKind() != Struct.Class) && !e.assignableTo(d.getType())) {
 							parser.report_error("Semantical error in line " + dleft + " : Incompatible types", null);
 						} else {
                             Code.store(d);
@@ -598,7 +598,7 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     Designator:d PLUSPLUS SEMICOLON
                     {:
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
-                            parser.report_error("Semantical error in line " + dleft + " : Unary operator \'++\' only applicalble to non-const int type", null);
+                            parser.report_error("Semantical error in line " + dleft + " : Unary operator \'++\' only applicable to non-const int type", null);
                         }
 
                         Code.load(d);
@@ -610,7 +610,7 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     Designator:d MINUSMINUS SEMICOLON
                     {:
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
-                            parser.report_error("Semantical error in line " + dleft + " : Unary operator \'--\' only applicalble to non-const int type", null);
+                            parser.report_error("Semantical error in line " + dleft + " : Unary operator \'--\' only applicable to non-const int type", null);
                         }
 
                         Code.load(d);
@@ -659,6 +659,10 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                             parser.report_error("Semantical error in line " + dleft + " : Invalid parameter type for \'read\'", null);
                         }
 
+                        if (currentMethod.getName().equals("main") && !inClass) {
+                            parser.methodCallsInMainCount++;
+                        }
+
                         Code.put(d.getType() != Tab.charType ? Code.read : Code.bread);
                         Code.store(d);
                     :}
@@ -669,6 +673,10 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
                         }
 
+                        if (currentMethod.getName().equals("main") && !inClass) {
+                            parser.methodCallsInMainCount++;
+                        }
+
                         Code.loadConst(i.intValue());
                         Code.put(e != Tab.charType ? Code.print : Code.bprint);
                     :}
@@ -677,6 +685,10 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     {:
                         if (e != Tab.intType && e != Tab.charType && e != boolType && e != stringType) {
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
+                        }
+
+                        if (currentMethod.getName().equals("main") && !inClass) {
+                            parser.methodCallsInMainCount++;
                         }
 
                         Code.loadConst(Code.const_n + 0);
@@ -791,7 +803,7 @@ CondFact    ::= Expr:e1 Relop:op Expr:e2
 
                     if (op != Code.eq && op != Code.ne) {
                         if (e1.getKind() == Struct.Class && e2.getKind() == Struct.Class) {
-                            parser.report_error("Semantical error in line " + e1left + " : Only \'==\' and \'!=\' operators are applicalble to class types", null);
+                            parser.report_error("Semantical error in line " + e1left + " : Only \'==\' and \'!=\' operators are applicable to class types", null);
                         }
                     }
                 :}
@@ -807,7 +819,7 @@ CondFact    ::= Expr:e1 Relop:op Expr:e2
 Expr        ::= MINUS ExprTemp:e
 				{:
                     if (e != Tab.intType) {
-                        parser.report_error("Semantical error in line " + eleft + " : Unary operator \'-\' only applicalble to int type", null);
+                        parser.report_error("Semantical error in line " + eleft + " : Unary operator \'-\' only applicable to int type", null);
                     }
 
                     Code.put(Code.neg);
