@@ -1,8 +1,11 @@
 program Program
-    class A {}
-    class B extends A {}
+    class A {
+    }
+    class A {
+            
+    }
 {
-	void main() A a; B b; {
-        a = b;
+	void main() {
+
 	}
 }

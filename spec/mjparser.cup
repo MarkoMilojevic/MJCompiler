@@ -79,6 +79,7 @@ action code {:
     Boolean inClass = false;
     Boolean inMethod = false;
     Boolean inLoop = false;
+    Stack<String> wrongTypeIdent = new Stack<String>();
 
     Boolean mainFound = false;
 	boolean returnFound = false;
@@ -236,9 +237,18 @@ Var					::= IDENT:varName LBRACK RBRACK
                             Obj obj = Tab.currentScope().findSymbol(varName);
                             if (obj != null) {
                                 parser.report_error("Semantical error in line " + varNameleft + " : Variable \'" + varName + "\' already declared", null);
-                            } else {
-    							parser.log.info("Variable declared \'" + varName + "\'[] in line " + varNameleft);
-    							int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
+                            } else if (currentType != Tab.noType) {
+                                int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
+    							if (objKind == Obj.Var) {
+                                    if (inMethod) {
+                                        parser.log.info("Local variable declared \'" + varName + "[]\' in line " + varNameleft);
+                                    } else {
+                                        parser.log.info("Variable declared \'" + varName + "[]\' in line " + varNameleft);
+                                    }
+                                } else {
+                                    parser.log.info("Field declared \'" + varName + "[]\' in line " + varNameleft);
+                                }
+
                                 Tab.insert(objKind, varName, new Struct(Struct.Array, currentType));
                                 if (!inClass && !inMethod) {
                                     parser.globalArrayDecl++;
@@ -256,9 +266,18 @@ Var					::= IDENT:varName LBRACK RBRACK
                             Obj obj = Tab.currentScope().findSymbol(varName);
                             if (obj != null) {
                                 parser.report_error("Semantical error in line " + varNameleft + " : Variable \'" + varName + "\' already declared", null);
-                            } else {
-    							parser.log.info("Variable declared \'" + varName + "\' in line " + varNameleft);
-    							int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
+                            } else if (currentType != Tab.noType) {
+                                int objKind = inClass && !inMethod ? Obj.Fld : Obj.Var;
+    							if (objKind == Obj.Var) {
+                                    if (inMethod) {
+                                        parser.log.info("Local variable declared \'" + varName + "\' in line " + varNameleft);
+                                    } else {
+                                        parser.log.info("Variable declared \'" + varName + "\' in line " + varNameleft);
+                                    }
+                                } else {
+                                    parser.log.info("Field declared \'" + varName + "\' in line " + varNameleft);
+                                }
+
                                 Tab.insert(objKind, varName, currentType);
                                 if (!inClass && !inMethod) {
                                     Code.dataSize++;
@@ -305,25 +324,28 @@ ClassDecl               ::= CLASS ClassName LBRACE ClassVarMethodDeclList RBRACE
                             |
                             CLASS ClassName EXTENDS IDENT:baseName
                             {:
-                                Obj baseClass = Tab.find(baseName);
-                                if (baseClass == Tab.noObj || baseClass.getType().getKind() != Struct.Class) {
-                                    parser.report_error("Semantical error in line " + baseNameleft + " : Identifier \'" + baseName + "\' does not represent a class", null);
-                                } else {
-                                    for(Obj obj : baseClass.getType().getMembers()) {
-                                        Obj o = Tab.insert(obj.getKind(), "super." + obj.getName(), obj.getType());
-                                        if (obj.getKind() == Obj.Meth) {
-                                            o.setLevel(obj.getLevel());
-                                            HashTableDataStructure symbols = new HashTableDataStructure();
-                                            for(Obj param : obj.getLocalSymbols()) {
-                                                symbols.insertKey(param);
-                                            }
+                                if (currentClass != Tab.noObj) {
+                                    Obj baseClass = Tab.find(baseName);
+                                    if (baseClass == Tab.noObj || baseClass.getType().getKind() != Struct.Class) {
+                                        parser.report_error("Semantical error in line " + baseNameleft + " : Identifier \'" + baseName + "\' does not represent a class", null);
+                                    } else {
+                                        for(Obj obj : baseClass.getType().getMembers()) {
+                                            Obj o = Tab.insert(obj.getKind(), "super." + obj.getName(), obj.getType());
+                                            if (obj.getKind() == Obj.Meth) {
+                                                int paramCount = obj.getLevel();
+                                                o.setLevel(paramCount);
+                                                HashTableDataStructure symbols = new HashTableDataStructure();
+                                                for(Obj param : obj.getLocalSymbols()) {
+                                                    symbols.insertKey(param);
+                                                }
 
-                                            o.setLocals(symbols);
+                                                o.setLocals(symbols);
+                                            }
                                         }
                                     }
-                                }
 
-                                parser.inheritenceCount++;
+                                    parser.inheritenceCount++;
+                                }
                             :}
                             LBRACE ClassVarMethodDeclList RBRACE ClassCloseDecl
                             ;
@@ -335,10 +357,16 @@ ClassDecl               ::= CLASS ClassName EXTENDS error:e LBRACE ClassVarMetho
 ClassName               ::= IDENT:className
                             {:
                                 inClass = true;
-                                currentClass = Tab.insert(Obj.Type, className, new Struct(Struct.Class));
-                                Tab.openScope();
-                                parser.log.info("Class declared \'" + className + "\' in line " + classNameleft);
-                                parser.classCount++;
+                                if (Tab.find(className) != Tab.noObj) {
+                                    parser.report_error("Semantical error in line " + classNameleft + " : Class \'" + className + "\' already declared", null);
+                                    currentClass = Tab.noObj;
+                                } else {
+                                    currentClass = Tab.insert(Obj.Type, className, new Struct(Struct.Class));
+                                    Tab.openScope();
+                                    parser.log.info("Class declared \'" + className + "\' in line " + classNameleft);
+                                    parser.classCount++;
+                                }
+
                             :}
                             ;
 
@@ -453,7 +481,13 @@ MethodVarDeclList   ::= LocalVarDeclList
                         
 MethodCall          ::= Designator:func MethodSignature:sign
 						{:
-                            String funcName = func.getName().substring(func.getName().lastIndexOf('.') + 1);
+                            String funcName = "";
+                            if (func == Tab.noObj) {
+                                funcName = wrongTypeIdent.size() > 0 ? wrongTypeIdent.pop() : "noObj";
+                            } else {
+                                funcName = func.getName().substring(func.getName().lastIndexOf('.') + 1);
+                            }
+
 							if (func.getKind() == Obj.Meth) {
 								parser.report_info("Method call found \'" + funcName + "\' in line " + funcleft, null);
                                 if(sign.size() != func.getLevel()) {
@@ -542,6 +576,7 @@ Type    ::= IDENT:typeName
 				if (typeNode == Tab.noObj) {
 					parser.report_error("Semantical error in line " + typeNameleft + " : Type \'" + typeName + "\' not found in the symbols table", null);
 					currentType = Tab.noType;
+                    wrongTypeIdent.push(typeName);
 					RESULT = Tab.noType;
 				}
 				else {
@@ -552,6 +587,7 @@ Type    ::= IDENT:typeName
 					else {
 						parser.report_error("Semantical error in line " + typeNameleft + " : Identifier \'" + typeName + "\' does not represent a type", null);
 						currentType = Tab.noType;
+                        wrongTypeIdent.push(typeName);
 						RESULT = Tab.noType;
 					}
 				}
@@ -599,24 +635,26 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     {:
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
                             parser.report_error("Semantical error in line " + dleft + " : Unary operator \'++\' only applicable to non-const int type", null);
+                        } else {
+                            Code.load(d);
+                            Code.put(Code.const_1);
+                            Code.put(Code.add);
+                            Code.store(d);
                         }
 
-                        Code.load(d);
-                        Code.put(Code.const_1);
-                        Code.put(Code.add);
-                        Code.store(d);
                     :}
                     |
                     Designator:d MINUSMINUS SEMICOLON
                     {:
                         if (d.getKind() == Obj.Con || d.getType() != Tab.intType) {
                             parser.report_error("Semantical error in line " + dleft + " : Unary operator \'--\' only applicable to non-const int type", null);
+                        } else {
+                            Code.load(d);
+                            Code.put(Code.const_1);
+                            Code.put(Code.sub);
+                            Code.store(d);
                         }
 
-                        Code.load(d);
-                        Code.put(Code.const_1);
-                        Code.put(Code.sub);
-                        Code.store(d);
                     :}
                     |
                     IF LPAREN Condition RPAREN Matched ELSE Matched
@@ -653,46 +691,51 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     |
                     READ LPAREN Designator:d RPAREN SEMICOLON
                     {:
+                        parser.report_info("Method call found \'read\' in line " + dleft, null);
                         if (d.getKind() == Obj.Con) {
                             parser.report_error("Semantical error in line " + dleft + " : Must pass a non-const variable to \'read\'", null);
                         } else if (d.getType() != Tab.intType && d.getType() != Tab.charType && d.getType() != boolType && d.getType() != stringType) {
                             parser.report_error("Semantical error in line " + dleft + " : Invalid parameter type for \'read\'", null);
+                        } else {
+                            Code.put(d.getType() != Tab.charType ? Code.read : Code.bread);
+                            Code.store(d);
                         }
 
                         if (currentMethod.getName().equals("main") && !inClass) {
                             parser.methodCallsInMainCount++;
                         }
-
-                        Code.put(d.getType() != Tab.charType ? Code.read : Code.bread);
-                        Code.store(d);
                     :}
                     |
                     PRINT LPAREN Expr:e COMMA NUMBER:i RPAREN SEMICOLON
                     {:
+                        parser.report_info("Method call found \'print\' in line " + eleft, null);
                         if (e != Tab.intType && e != Tab.charType && e != boolType &&e != stringType) {
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
+                        } else {
+                            Code.loadConst(i.intValue());
+                            Code.put(e != Tab.charType ? Code.print : Code.bprint);
                         }
 
                         if (currentMethod.getName().equals("main") && !inClass) {
                             parser.methodCallsInMainCount++;
                         }
 
-                        Code.loadConst(i.intValue());
-                        Code.put(e != Tab.charType ? Code.print : Code.bprint);
                     :}
                     |
                     PRINT LPAREN Expr:e RPAREN SEMICOLON
                     {:
+                        parser.report_info("Method call found \'print\' in line " + eleft, null);
                         if (e != Tab.intType && e != Tab.charType && e != boolType && e != stringType) {
                             parser.report_error("Semantical error in line " + eleft + " : Invalid parameter type for \'print\'", null);
+                        } else {
+                            Code.loadConst(Code.const_n + 0);
+                            Code.put(e != Tab.charType ? Code.print : Code.bprint);
                         }
 
                         if (currentMethod.getName().equals("main") && !inClass) {
                             parser.methodCallsInMainCount++;
                         }
 
-                        Code.loadConst(Code.const_n + 0);
-                        Code.put(e != Tab.charType ? Code.print : Code.bprint);
                     :}
                     |
                     LBRACE StatementList RBRACE
@@ -700,10 +743,10 @@ Matched         ::= Designator:d EQ Expr:e SEMICOLON
                     ;
                     
 Matched			::= Designator EQ error:e SEMICOLON
-                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement."); :}
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement until \';\'."); :}
                     |
                     error:e EQ Expr SEMICOLON
-                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement."); :}
+                    {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from assignment statement until \';\'."); :}
                     |
                     Designator LPAREN error:e SEMICOLON
                     {: parser.log.debug("Successful syntax error recovery in line " + eleft + " from function call until \';\'."); :}
@@ -766,7 +809,7 @@ ActPars ::= ActPars:ap COMMA Expr:e
             Expr:e
             {: 
                 RESULT = new LinkedList<Struct>();
-                RESULT.add(e);  
+                RESULT.add(e);
             :}
             ;
 /* ================ ActPars ==================== */
@@ -834,11 +877,6 @@ Expr        ::= MINUS ExprTemp:e
 
 ExprTemp    ::= ExprTemp:e Addop:op Term:t
 				{:
-					if (!e.compatibleWith(t)) {
-                        parser.report_error("Semantical error in line " + eleft + " : Incompatible types", null);
-                        RESULT = Tab.noType;
-                    }
-
                     if (op != Code.add) {
                         if (e != Tab.intType || t != Tab.intType) {
                             parser.report_error("Semantical error in line " + eleft + " : Variables must be int type", null);    
@@ -868,10 +906,6 @@ Term    ::= Term:t Mulop:op Factor:f
             {:
                 if (t != Tab.intType || f != Tab.intType) {
                     parser.report_error("Semantical error in line " + tleft + " : Variables must be int type", null);
-                }
-
-                if(!t.compatibleWith(f)) {
-                    parser.report_error("Semantical error in line " + tleft + " : Incompatible types", null);
                 }
 
                 Code.put(op);
@@ -968,6 +1002,7 @@ Designator  ::= Designator:d DOT IDENT:name
 
                 	if (obj == Tab.noObj && d.getType().getKind() == Struct.Class) {
                 		parser.report_error("Semantical error in line " + nameleft + " : Identifier \'" + name + "\' not declared in class \'" + d.getName() + "\'", null);
+                        wrongTypeIdent.push(name);
                 	}
                 	
                 	RESULT = obj;
@@ -984,7 +1019,12 @@ Designator  ::= Designator:d DOT IDENT:name
                     } else if (d.getType().getKind() == Struct.Array) {
                         RESULT = new Obj(Obj.Elem, "", d.getType().getElemType());
                     } else {
-                        parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + d.getName() + "\' is not an array type", null);
+                        if (d != Tab.noObj) {
+                            parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + d.getName() + "\' is not an array type", null);
+                        } else {
+                            String arrayName = wrongTypeIdent.size() > 0 ? wrongTypeIdent.pop() : "noObj";
+                            parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + arrayName + "\' is not an array type", null);
+                        }
                         RESULT = Tab.noObj;
                     }
 				:}
@@ -1001,6 +1041,7 @@ Designator  ::= Designator:d DOT IDENT:name
 
                 	if (obj == Tab.noObj) {
                 		parser.report_error("Semantical error in line " + nameleft + " : Identifier \'" + name + "\' not declared", null);
+                        wrongTypeIdent.push(name);
                 	}
                 	
                 	RESULT = obj;
@@ -1012,10 +1053,11 @@ Designator  ::=	Designator:d LBRACK error:e RBRACK
                     parser.log.debug("Successful syntax error recovery in line " + eleft + " from array indexing expression until \']\'");
                     if(d.getType() == stringType) {
                         RESULT = new Obj(Obj.Elem, "", Tab.charType);
-                    } else if (d.getType().getKind() == Struct.Array) { 
+                    } else if (d.getType().getKind() == Struct.Array) {
                         RESULT = new Obj(Obj.Elem, "", d.getType().getElemType());
                     } else {
-                        parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + d.getName() + "\' is not an array type", null);
+                        String arrayName = wrongTypeIdent.size() > 0 ? wrongTypeIdent.pop() : "noObj";
+                        parser.report_error("Semantical error in line " + dleft + " : Identifier \'" + arrayName + "\' is not an array type", null);
                         RESULT = Tab.noObj;
                     }
                 :}
